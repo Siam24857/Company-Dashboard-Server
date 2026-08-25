@@ -1,0 +1,390 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id                String   @id @default(cuid())
+  fullName          String
+  email             String   @unique
+  password          String
+  phone             String?
+  profession        String?
+  bio               String?
+  skills            String[]
+  avatarUrl         String?
+  avatarPublicId    String?
+  coverImageUrl     String?
+  coverPublicId     String?
+  resumeUrl         String?
+  resumePublicId    String?
+  githubUrl         String?
+  linkedinUrl       String?
+  portfolioUrl      String?
+  bestProject       String?
+  bestProjectUrl    String?
+  role              Role
+  department        Department
+  status            UserStatus   @default(PENDING)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  otp               String?
+  otpExpiry         DateTime?
+
+  attendances       Attendance[]
+  projects          UserProject[]
+  messages          Message[]    @relation("MessageSender")
+  receivedMsgs      Message[]    @relation("MessageReceiver")
+  notifications     Notification[]
+  emailLogs         EmailLog[]
+  taskSubmissions   TaskSubmission[]
+  announcementReads AnnouncementRead[]
+  auditLogs         AuditLog[]
+}
+
+enum Role {
+  ADMIN
+  BUSINESS_MANAGEMENT
+  SALES_MANAGEMENT
+  OPERATIONS_DEVELOPER
+}
+
+enum Department {
+  BUSINESS_MANAGEMENT
+  SALES_MANAGEMENT
+  OPERATIONS_DEVELOPER
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+model Attendance {
+  id                    String           @id @default(cuid())
+  userId                String
+  user                  User             @relation(fields: [userId], references: [id])
+  date                  DateTime         @db.Date
+  checkIn               DateTime?
+  checkOut              DateTime?
+  status                AttendanceStatus
+  taskTitle             String?
+  taskDescription       String?
+  workCompleted         String?
+  taskStatus            TaskStatus?
+  timeSpentMinutes      Int?
+  screenshotUrl         String?
+  screenshotPublicId    String?
+  notes                 String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  @@unique([userId, date])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  LEAVE
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  title       String
+  description String
+  status      ProjectStatus @default(PLANNING)
+  priority    Priority      @default(MEDIUM)
+  department  Department
+  startDate   DateTime
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  members     UserProject[]
+  tasks       Task[]
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model UserProject {
+  id        String  @id @default(cuid())
+  userId    String
+  projectId String
+  user      User    @relation(fields: [userId], references: [id])
+  project   Project @relation(fields: [projectId], references: [id])
+  role      String
+
+  @@unique([userId, projectId])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id])
+  title       String
+  description String?
+  assignedTo  String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  dueDate     DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  submissions TaskSubmission[]
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  COMPLETED
+  REJECTED
+}
+
+model TaskSubmission {
+  id                 String            @id @default(cuid())
+  taskId             String
+  task               Task              @relation(fields: [taskId], references: [id])
+  userId             String
+  user               User              @relation(fields: [userId], references: [id])
+  summary            String
+  completedWork      String
+  problems           String?
+  timeSpentMinutes   Int?
+  screenshotUrl      String?
+  screenshotPublicId String?
+  status             SubmissionStatus  @default(PENDING)
+  adminFeedback      String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  senderId    String
+  receiverId  String
+  sender      User     @relation("MessageSender", fields: [senderId], references: [id])
+  receiver    User     @relation("MessageReceiver", fields: [receiverId], references: [id])
+  content     String
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  type      String
+  createdAt DateTime @default(now())
+}
+
+model EmailLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  to          String
+  subject     String
+  body        String
+  status      String
+  sentAt      DateTime @default(now())
+}
+
+model LeaveRequest {
+  id          String      @id @default(cuid())
+  userId      String
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  status      LeaveStatus @default(PENDING)
+  reviewedBy  String?
+  createdAt   DateTime    @default(now())
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Announcement {
+  id          String              @id @default(cuid())
+  title       String
+  content     String
+  priority    AnnouncementPriority @default(NORMAL)
+  targetRole  Role?
+  publishedAt DateTime?
+  expiresAt   DateTime?
+  createdBy   String
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  reads       AnnouncementRead[]
+}
+
+enum AnnouncementPriority {
+  NORMAL
+  IMPORTANT
+  URGENT
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt         DateTime     @default(now())
+
+  @@unique([announcementId, userId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actorEmail  String?
+  action      String
+  target      String?
+  description String?
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  user        User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+}
+
+model BdLead {
+  id          String    @id @default(cuid())
+  company     String
+  contact     String
+  email       String
+  phone       String?
+  value       Float?
+  source      String?
+  notes       String?
+  status      String    @default("LEAD")
+  assignedTo  String?
+  lastContact DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model BdProposal {
+  id          String    @id @default(cuid())
+  company     String
+  value       Float?
+  sentDate    DateTime
+  status      String    @default("SENT")
+  notes       String?
+  createdAt   DateTime  @default(now())
+}
+
+model SalesCall {
+  id          String    @id @default(cuid())
+  company     String
+  contact     String
+  callDate    DateTime
+  duration    Int?
+  outcome     String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+}
+
+model SalesPipeline {
+  id          String    @id @default(cuid())
+  company     String
+  value       Float?
+  stage       String    @default("PROSPECTING")
+  contact     String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model SalesFollowUp {
+  id          String    @id @default(cuid())
+  contact     String
+  company     String
+  dueDate     DateTime
+  time        String?
+  notes       String?
+  done        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+model OpsTask {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  assignedTo  String?
+  status      String    @default("PENDING")
+  priority    String    @default("MEDIUM")
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model OpsSop {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  fileUrl     String?
+  fileName    String?
+  createdAt   DateTime  @default(now())
+}
+
+model OpsIncident {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  severity    String    @default("MEDIUM")
+  status      String    @default("OPEN")
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model OpsResource {
+  id          String    @id @default(cuid())
+  name        String
+  category    String?
+  renewalDate DateTime?
+  assignedTo  String?
+  createdAt   DateTime  @default(now())
+}
