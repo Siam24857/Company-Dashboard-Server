@@ -54,11 +54,9 @@ app.use(
   })
 )
 
-const isDevelopment = process.env.NODE_ENV === 'development'
-
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDevelopment ? 1000 : 100,
+  max: 500,
   message: { message: 'Too many requests, please try again later.' },
   validate: false,
 })
@@ -66,7 +64,7 @@ app.use(limiter)
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDevelopment ? 1000 : 5,
+  max: 50,
   message: { message: 'Too many authentication attempts, please try again later.' },
   validate: false,
 })
