@@ -74,7 +74,14 @@ app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
 
 app.get('/', (req, res) => res.json({ name: 'ideon-dashboard-backend', status: 'running', timestamp: new Date().toISOString() }))
-app.get('/api/health', (req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }))
+app.get('/api/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    res.json({ status: 'OK', database: 'connected', timestamp: new Date().toISOString() })
+  } catch (error) {
+    res.status(500).json({ status: 'ERROR', database: 'disconnected', error: error.message, timestamp: new Date().toISOString() })
+  }
+})
 
 app.use('/api/auth', authLimiter, authRoutes)
 app.use('/api/admin', authLimiter, adminRoutes)
@@ -97,8 +104,11 @@ app.use('/api/admin/audit-logs', auditRoutes)
 app.use('/api/upload', cloudinaryRoutes)
 
 app.use((err, req, res, next) => {
-  console.error(err.stack)
-  res.status(500).json({ message: 'Internal server error', error: err.message })
+  console.error('Error:', err.message)
+  console.error('Stack:', err.stack)
+  res.status(500).json({ message: 'Internal server error', error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong' })
 })
 
-export default app
+export default function handler(req, res) {
+  return app(req, res)
+}
