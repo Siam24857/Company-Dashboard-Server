@@ -37,10 +37,12 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://vercel.live"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://vercel.live"],
+        "script-src-elem": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://vercel.live"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
         connectSrc: ["'self'", "https://vercel.live"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
       },
     },
   })
@@ -58,6 +60,7 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDevelopment ? 1000 : 100,
   message: { message: 'Too many requests, please try again later.' },
+  validate: false,
 })
 app.use(limiter)
 
@@ -65,12 +68,14 @@ const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDevelopment ? 1000 : 5,
   message: { message: 'Too many authentication attempts, please try again later.' },
+  validate: false,
 })
 
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
 
+app.get('/', (req, res) => res.json({ name: 'ideon-dashboard-backend', status: 'running', timestamp: new Date().toISOString() }))
 app.get('/api/health', (req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }))
 
 app.use('/api/auth', authLimiter, authRoutes)
