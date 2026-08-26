@@ -31,7 +31,12 @@ const toLocalDateString = (d) => {
   return `${y}-${m}-${day}`
 }
 
-const toDate = (dateString) => new Date(`${dateString}T00:00:00.000Z`)
+const toDate = (dateString) => {
+  if (!dateString) return null
+  const str = String(dateString).trim()
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) return new Date(str)
+  return new Date(`${str}T00:00:00.000Z`)
+}
 
 const normalizeTimestamp = (value, dateString) => {
   if (!value) return null

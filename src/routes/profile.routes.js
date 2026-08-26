@@ -74,11 +74,11 @@ router.patch('/', authenticate, validateBody(z.object({
   profession: z.string().optional(),
   bio: z.string().optional(),
   skills: z.array(z.string()).optional(),
-  linkedinUrl: z.string().url().optional(),
-  portfolioUrl: z.string().url().optional(),
-  githubUrl: z.string().url().optional(),
+  linkedinUrl: z.string().url().or(z.literal('')).optional(),
+  portfolioUrl: z.string().url().or(z.literal('')).optional(),
+  githubUrl: z.string().url().or(z.literal('')).optional(),
   bestProject: z.string().optional(),
-  bestProjectUrl: z.string().url().optional(),
+  bestProjectUrl: z.string().url().or(z.literal('')).optional(),
 }).partial()), async (req, res) => {
   try {
     let userId = req.user?.id
@@ -97,12 +97,22 @@ router.patch('/', authenticate, validateBody(z.object({
       return errorResponse(res, 'No user account found to update', 400)
     }
 
+    const cleaned = Object.fromEntries(
+      Object.entries(req.body).filter(([_, v]) => v !== '' && v !== undefined)
+    )
+
+    if (Object.keys(cleaned).length === 0) {
+      return errorResponse(res, 'No valid fields to update', 400)
+    }
+
     const user = await prisma.user.update({
       where: { id: userId },
-      data: req.body,
+      data: cleaned,
     })
 
-    await createAuditLog('PROFILE_UPDATED', user.id, 'User updated their profile', req.user.id, req.user.email, req.ip)
+    const actorId = req.user?.id || req.admin?.id
+    const actorEmail = req.user?.email || req.admin?.email
+    await createAuditLog('PROFILE_UPDATED', user.id, 'User updated their profile', actorId, actorEmail, req.ip)
 
     const { password: _, ...userWithoutPassword } = user
     return successResponse(res, { user: userWithoutPassword })

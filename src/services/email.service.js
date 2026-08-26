@@ -1,14 +1,18 @@
 import nodemailer from 'nodemailer'
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-})
+const isEmailConfigured = process.env.SMTP_USER && process.env.SMTP_PASS && !process.env.SMTP_USER.includes('your-email')
+
+const transporter = isEmailConfigured
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    })
+  : null
 
 const baseTemplate = (content) => `
 <!DOCTYPE html>
@@ -46,6 +50,10 @@ const baseTemplate = (content) => `
 `
 
 export const sendEmail = async (to, subject, htmlContent) => {
+  if (!transporter) {
+    console.log(`[Email skipped — SMTP not configured] To: ${to}, Subject: ${subject}`)
+    return { success: false, error: 'SMTP not configured' }
+  }
   try {
     const html = baseTemplate(htmlContent)
     const info = await transporter.sendMail({
@@ -56,7 +64,7 @@ export const sendEmail = async (to, subject, htmlContent) => {
     })
     return { success: true, messageId: info.messageId }
   } catch (error) {
-    console.error('Email send error:', error)
+    console.error('Email send error:', error.message)
     return { success: false, error: error.message }
   }
 }

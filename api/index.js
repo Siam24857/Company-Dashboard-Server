@@ -41,7 +41,7 @@ app.use(
         "script-src-elem": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://vercel.live"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'", "https://vercel.live"],
+        connectSrc: ["'self'", "https://vercel.live", "ws:", "http://localhost:*"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
       },
     },
