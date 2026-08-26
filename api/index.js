@@ -32,7 +32,19 @@ const app = express()
 
 app.set('trust proxy', 1)
 
-app.use(helmet())
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://vercel.live"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "https://vercel.live"],
+      },
+    },
+  })
+)
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || '*',
