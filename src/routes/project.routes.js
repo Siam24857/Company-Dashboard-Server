@@ -30,9 +30,14 @@ router.get('/', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMENT
         where: { userId: req.user.id },
         select: { projectId: true },
       })
+      const assignedTaskProjects = await prisma.task.findMany({
+        where: { assignedTo: req.user.id },
+        select: { projectId: true },
+      })
       where.OR = [
         { id: { in: userProjects.map((p) => p.projectId) } },
         { department: req.user.department },
+        { id: { in: assignedTaskProjects.map((t) => t.projectId) } },
       ]
     }
 

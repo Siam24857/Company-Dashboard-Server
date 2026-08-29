@@ -30,7 +30,8 @@ router.get('/:projectId/tasks', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', '
 
     const { assignedTo, status } = req.query
     const where = { projectId: req.params.projectId }
-    if (assignedTo) where.assignedTo = assignedTo
+    if (assignedTo === 'me') where.assignedTo = req.user?.id || req.admin?.id
+    else if (assignedTo) where.assignedTo = assignedTo
     if (status) where.status = status
 
     const tasks = await prisma.task.findMany({
