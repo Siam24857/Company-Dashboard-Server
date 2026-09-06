@@ -12,15 +12,83 @@ const messageSchema = z.object({
   content: z.string().min(1),
 })
 
+const broadcastSchema = z.object({
+  content: z.string().min(1),
+  userIds: z.array(z.string()).optional(),
+})
+
+const USER_SELECT = { id: true, fullName: true, avatarUrl: true }
+
+// The authenticated user record — admin-table identities have no User row here.
+const requireUserRecord = (req) => (req.user?.id ? req.user : null)
+
+// Global broadcasts = admin-authored messages delivered to more than one receiver.
+const buildBroadcastKeys = async (adminIds) => {
+  const grouped = await prisma.message.groupBy({
+    by: ['senderId', 'content'],
+    where: { senderId: { in: adminIds } },
+    _count: { _all: true },
+  })
+  const keys = new Set()
+  grouped.forEach((g) => {
+    if (g._count._all > 1) keys.add(`${g.senderId}:${g.content}`)
+  })
+  return keys
+}
+
+// Global communication feed — every role can read; only admin can POST (/broadcast).
+router.get('/global', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMENT', 'OPERATIONS_DEVELOPER'), async (req, res) => {
+  try {
+    const me = requireUserRecord(req)
+    if (!me) return successResponse(res, { posts: [] })
+
+    const adminIds = (await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })).map((u) => u.id)
+    const keys = await buildBroadcastKeys(adminIds)
+
+    const messages = await prisma.message.findMany({
+      where: { senderId: { in: adminIds }, receiverId: me.id },
+      include: { sender: { select: USER_SELECT } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    })
+
+    const seen = new Set()
+    const posts = []
+    messages.forEach((m) => {
+      const key = `${m.senderId}:${m.content}`
+      if (!keys.has(key) || seen.has(key)) return
+      seen.add(key)
+      posts.push({
+        id: m.id,
+        sender: m.sender,
+        content: m.content,
+        createdAt: m.createdAt,
+      })
+    })
+
+    return successResponse(res, { posts })
+  } catch (error) {
+    return errorResponse(res, error.message, 500)
+  }
+})
+
 router.get('/conversations', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMENT', 'OPERATIONS_DEVELOPER'), async (req, res) => {
   try {
+    const me = requireUserRecord(req)
+    if (!me) {
+      return successResponse(res, { conversations: [], notice: 'No user account linked to your admin login.' })
+    }
+
+    const adminIds = (await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })).map((u) => u.id)
+    const broadcastKeys = await buildBroadcastKeys(adminIds)
+
     const conversations = await prisma.message.findMany({
       where: {
-        OR: [{ senderId: req.user.id }, { receiverId: req.user.id }],
+        OR: [{ senderId: me.id }, { receiverId: me.id }],
       },
       include: {
-        sender: { select: { id: true, fullName: true, email: true, avatarUrl: true } },
-        receiver: { select: { id: true, fullName: true, email: true, avatarUrl: true } },
+        sender: { select: { ...USER_SELECT, email: true } },
+        receiver: { select: { ...USER_SELECT, email: true } },
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -28,15 +96,17 @@ router.get('/conversations', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SAL
     const conversationMap = new Map()
 
     conversations.forEach((msg) => {
-      const otherUser = msg.senderId === req.user.id ? msg.receiver : msg.sender
+      if (broadcastKeys.has(`${msg.senderId}:${msg.content}`)) return
+      const otherUser = msg.senderId === me.id ? msg.receiver : msg.sender
+      if (!otherUser) return
       const key = otherUser.id
 
-      if (!conversationMap.has(key) || conversationMap.get(key).createdAt < msg.createdAt) {
+      if (!conversationMap.has(key) || conversationMap.get(key).lastMessageAt < msg.createdAt) {
         conversationMap.set(key, {
           user: otherUser,
           lastMessage: msg.content,
           lastMessageAt: msg.createdAt,
-          unreadCount: msg.receiverId === req.user.id && !msg.isRead ? 1 : 0,
+          unreadCount: msg.receiverId === me.id && !msg.isRead ? 1 : 0,
         })
       }
     })
@@ -51,22 +121,27 @@ router.get('/conversations', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SAL
 
 router.get('/:userId', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMENT', 'OPERATIONS_DEVELOPER'), async (req, res) => {
   try {
+    const me = requireUserRecord(req)
+    if (!me) {
+      return successResponse(res, { messages: [], notice: 'No user account linked to your admin login.' })
+    }
+
     const messages = await prisma.message.findMany({
       where: {
         OR: [
-          { senderId: req.user.id, receiverId: req.params.userId },
-          { senderId: req.params.userId, receiverId: req.user.id },
+          { senderId: me.id, receiverId: req.params.userId },
+          { senderId: req.params.userId, receiverId: me.id },
         ],
       },
       include: {
-        sender: { select: { id: true, fullName: true, email: true, avatarUrl: true } },
-        receiver: { select: { id: true, fullName: true, email: true, avatarUrl: true } },
+        sender: { select: { ...USER_SELECT, email: true } },
+        receiver: { select: { ...USER_SELECT, email: true } },
       },
       orderBy: { createdAt: 'asc' },
     })
 
     await prisma.message.updateMany({
-      where: { senderId: req.params.userId, receiverId: req.user.id, isRead: false },
+      where: { senderId: req.params.userId, receiverId: me.id, isRead: false },
       data: { isRead: true },
     })
 
@@ -78,17 +153,23 @@ router.get('/:userId', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MAN
 
 router.post('/', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMENT', 'OPERATIONS_DEVELOPER'), validateBody(messageSchema), async (req, res) => {
   try {
+    const me = requireUserRecord(req)
+    if (!me) {
+      return errorResponse(res, 'No user account linked to your admin login; cannot send messages.', 400)
+    }
+
     const { receiverId, content } = req.body
 
+    const receiver = await prisma.user.findUnique({ where: { id: receiverId }, select: { id: true, status: true } })
+    if (!receiver) {
+      return errorResponse(res, 'Receiver not found', 404)
+    }
+
     const message = await prisma.message.create({
-      data: {
-        senderId: req.user.id,
-        receiverId,
-        content,
-      },
+      data: { senderId: me.id, receiverId, content },
       include: {
-        sender: { select: { id: true, fullName: true, email: true, avatarUrl: true } },
-        receiver: { select: { id: true, fullName: true, email: true, avatarUrl: true } },
+        sender: { select: { ...USER_SELECT, email: true } },
+        receiver: { select: { ...USER_SELECT, email: true } },
       },
     })
 
@@ -100,8 +181,11 @@ router.post('/', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMEN
 
 router.patch('/:id/read', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMENT', 'OPERATIONS_DEVELOPER'), async (req, res) => {
   try {
-    await prisma.message.update({
-      where: { id: req.params.id },
+    const me = requireUserRecord(req)
+    if (!me) return successResponse(res, { message: 'No user account linked' })
+
+    await prisma.message.updateMany({
+      where: { id: req.params.id, OR: [{ senderId: me.id }, { receiverId: me.id }] },
       data: { isRead: true },
     })
 
@@ -111,19 +195,34 @@ router.patch('/:id/read', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_
   }
 })
 
-router.post('/broadcast', authenticateAdmin, async (req, res) => {
+// Global broadcast — ADMIN ONLY. Delivers one message into every active user's inbox.
+router.post('/broadcast', authenticateAdmin, validateBody(broadcastSchema), async (req, res) => {
   try {
     const { content, userIds } = req.body
 
+    const targets = userIds && userIds.length > 0
+      ? await prisma.user.findMany({ where: { id: { in: userIds }, status: 'ACTIVE' }, select: { id: true } })
+      : await prisma.user.findMany({ where: { status: 'ACTIVE' }, select: { id: true } })
+
+    if (targets.length === 0) {
+      return errorResponse(res, 'No active users to broadcast to', 400)
+    }
+
+    let senderUser = req.user?.id ? req.user : null
+    if (!senderUser) {
+      senderUser = await prisma.user.findFirst({ where: { role: 'ADMIN', status: 'ACTIVE' }, select: { id: true } })
+    }
+    if (!senderUser?.id) {
+      return errorResponse(res, 'Admin must have a linked user account to broadcast.', 400)
+    }
+
     const messages = await prisma.$transaction(
-      userIds.map((userId) =>
-        prisma.message.create({
-          data: { senderId: req.user.id, receiverId: userId, content },
-        })
+      targets.map((t) =>
+        prisma.message.create({ data: { senderId: senderUser.id, receiverId: t.id, content } })
       )
     )
 
-    return successResponse(res, { messages }, 201)
+    return successResponse(res, { messages, sentTo: targets.length }, 201)
   } catch (error) {
     return errorResponse(res, error.message, 500)
   }
