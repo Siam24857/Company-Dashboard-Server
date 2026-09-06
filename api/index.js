@@ -25,6 +25,8 @@ import taskRoutes from '../src/routes/task.routes.js'
 import taskSubmissionRoutes from '../src/routes/task-submission.routes.js'
 import auditRoutes from '../src/routes/audit.routes.js'
 import cloudinaryRoutes from '../src/routes/cloudinary.routes.js'
+import dashboardRoutes from '../src/routes/dashboard.routes.js'
+import walletRoutes from '../src/routes/wallet.routes.js'
 
 dotenv.config()
 
@@ -112,6 +114,8 @@ app.use('/api/tasks', taskSubmissionRoutes)
 app.use('/api/submissions', taskSubmissionRoutes)
 app.use('/api/admin/audit-logs', auditRoutes)
 app.use('/api/upload', cloudinaryRoutes)
+app.use('/api/dashboard', dashboardRoutes)
+app.use('/api/wallet', walletRoutes)
 
 app.use((err, req, res, next) => {
   console.error('Error:', err.message)
