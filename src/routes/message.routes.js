@@ -22,6 +22,47 @@ const USER_SELECT = { id: true, fullName: true, avatarUrl: true }
 // The authenticated user record — admin-table identities have no User row here.
 const requireUserRecord = (req) => (req.user?.id ? req.user : null)
 
+// Resolve a real User record the admin can send messages from. Admin-table
+// logins have no User row, so resolve by email/role or provision an anchor.
+const resolveSenderUser = async (req) => {
+  if (req.user?.id) return req.user
+
+  const email = req.admin?.email
+  if (email) {
+    const byEmail = await prisma.user.findUnique({ where: { email } })
+    if (byEmail) return byEmail
+  }
+
+  const active = await prisma.user.findFirst({ where: { role: 'ADMIN', status: 'ACTIVE' } })
+  if (active) return active
+
+  const anyAdmin = await prisma.user.findFirst({ where: { role: 'ADMIN' } })
+  if (anyAdmin) return anyAdmin
+
+  if (email) {
+    const password = require('crypto').randomBytes(24).toString('hex')
+    try {
+      return await prisma.user.create({
+        data: {
+          fullName: email.split('@')[0] || 'Admin',
+          email,
+          password,
+          role: 'ADMIN',
+          department: 'BUSINESS_MANAGEMENT',
+          status: 'ACTIVE',
+        },
+      })
+    } catch (error) {
+      if (error.code === 'P2002') {
+        const again = await prisma.user.findUnique({ where: { email } })
+        if (again) return again
+      }
+    }
+  }
+
+  return null
+}
+
 // Global broadcasts = admin-authored messages delivered to more than one receiver.
 const buildBroadcastKeys = async (adminIds) => {
   const grouped = await prisma.message.groupBy({
@@ -153,20 +194,20 @@ router.get('/:userId', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MAN
 
 router.post('/', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMENT', 'OPERATIONS_DEVELOPER'), validateBody(messageSchema), async (req, res) => {
   try {
-    const me = requireUserRecord(req)
-    if (!me) {
-      return errorResponse(res, 'No user account linked to your admin login; cannot send messages.', 400)
+    const senderUser = await resolveSenderUser(req)
+    if (!senderUser?.id) {
+      return errorResponse(res, 'No user account available to send from.', 400)
     }
 
     const { receiverId, content } = req.body
 
     const receiver = await prisma.user.findUnique({ where: { id: receiverId }, select: { id: true, status: true } })
-    if (!receiver) {
+    if (!receiver || receiver.status !== 'ACTIVE') {
       return errorResponse(res, 'Receiver not found', 404)
     }
 
     const message = await prisma.message.create({
-      data: { senderId: me.id, receiverId, content },
+      data: { senderId: senderUser.id, receiverId, content },
       include: {
         sender: { select: { ...USER_SELECT, email: true } },
         receiver: { select: { ...USER_SELECT, email: true } },
@@ -208,12 +249,9 @@ router.post('/broadcast', authenticateAdmin, validateBody(broadcastSchema), asyn
       return errorResponse(res, 'No active users to broadcast to', 400)
     }
 
-    let senderUser = req.user?.id ? req.user : null
-    if (!senderUser) {
-      senderUser = await prisma.user.findFirst({ where: { role: 'ADMIN', status: 'ACTIVE' }, select: { id: true } })
-    }
+    const senderUser = await resolveSenderUser(req)
     if (!senderUser?.id) {
-      return errorResponse(res, 'Admin must have a linked user account to broadcast.', 400)
+      return errorResponse(res, 'No user account available to broadcast from.', 400)
     }
 
     const messages = await prisma.$transaction(
