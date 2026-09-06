@@ -42,6 +42,9 @@ model User {
   updatedAt         DateTime     @updatedAt
   otp               String?
   otpExpiry         DateTime?
+  balance           Float        @default(0)
+  totalEarnings     Float        @default(0)
+  totalSpent        Float        @default(0)
 
   attendances       Attendance[]
   projects          UserProject[]
@@ -52,6 +55,35 @@ model User {
   taskSubmissions   TaskSubmission[]
   announcementReads AnnouncementRead[]
   auditLogs         AuditLog[]
+  transactions      Transaction[]
+}
+
+model Transaction {
+  id          String            @id @default(cuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  category    String            @default("GENERAL")
+  description String?
+  amount      Float
+  status      TransactionStatus @default(PENDING)
+  reference   String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([userId, status])
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
 }
 
 enum Role {
