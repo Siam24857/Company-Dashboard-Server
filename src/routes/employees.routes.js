@@ -30,8 +30,8 @@ router.get('/', authenticateAdmin, async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit)
     const where = {}
 
-    if (q) where['user.fullName'] = { contains: q as string, mode: 'insensitive' as const }
-    if (department) where.department = department as string
+    if (q) where['user.fullName'] = { contains: q, mode: 'insensitive' }
+    if (department) where.department = department
 
     const [employees, total] = await Promise.all([
       prisma.user.findMany({

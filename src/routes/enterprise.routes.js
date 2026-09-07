@@ -113,7 +113,7 @@ router.get('/approvals', authenticateAdmin, async (req, res) => {
     const { status, page = 1, limit = 20 } = req.query
     const skip = (Number(page) - 1) * Number(limit)
     const where = {}
-    if (status) where.status = status as string
+    if (status) where.status = status
 
     const [approvals, total] = await Promise.all([
       prisma.approval.findMany({ where, skip, take: Number(limit), orderBy: { createdAt: 'desc' } }),
@@ -203,8 +203,8 @@ router.get('/incidents', authenticateAdmin, async (req, res) => {
     const { status, severity, page = 1, limit = 20 } = req.query
     const skip = (Number(page) - 1) * Number(limit)
     const where = {}
-    if (status) where.status = status as string
-    if (severity) where.severity = severity as string
+    if (status) where.status = status
+    if (severity) where.severity = severity
 
     const [incidents, total] = await Promise.all([
       prisma.incident.findMany({ where, skip, take: Number(limit), orderBy: { createdAt: 'desc' } }),
@@ -242,7 +242,7 @@ router.get('/jobs', authenticateAdmin, async (req, res) => {
     const { status, page = 1, limit = 20 } = req.query
     const skip = (Number(page) - 1) * Number(limit)
     const where = {}
-    if (status) where.status = status as string
+    if (status) where.status = status
 
     const [jobs, total] = await Promise.all([
       prisma.backgroundJob.findMany({ where, skip, take: Number(limit), orderBy: { createdAt: 'desc' } }),

@@ -148,8 +148,12 @@ router.get('/user-intelligence', authenticateAdmin, async (req, res) => {
       take: 20,
     })
 
+    const usersLast30 = await prisma.user.count({ where: { createdAt: { gte: new Date(now - 30 * 86400000) } } })
+    const usersLast60 = await prisma.user.count({ where: { createdAt: { gte: new Date(now - 60 * 86400000) } } })
+    const growth = Math.round(((total - usersLast30) / usersLast60) * 100)
+
     return successResponse(res, {
-      summary: { total, active, pending, suspended, archived, growth: Math.round(((total - (await prisma.user.count({ where: { createdAt: { gte: new Date(now - 30 * 86400000) } }))) / (await prisma.user.count({ where: { createdAt: { gte: new Date(now - 60 * 86400000) } }))) * 100)) },
+      summary: { total, active, pending, suspended, archived, growth },
       byRole: byRole.map(r => ({ role: r.role, count: r._count._all })),
       byDepartment: byDepartment.map(d => ({ department: d.department, count: d._count._all })),
       recentRegistrations,
@@ -195,7 +199,7 @@ router.get('/audit-logs', authenticateAdmin, async (req, res) => {
     const { action, page = 1, limit = 50 } = req.query
     const skip = (Number(page) - 1) * Number(limit)
     const where = {}
-    if (action) where.action = { contains: action as string, mode: 'insensitive' as const }
+    if (action) where.action = { contains: action, mode: 'insensitive' }
 
     const [logs, total] = await Promise.all([
       prisma.auditLog.findMany({ where, skip, take: Number(limit), orderBy: { createdAt: 'desc' } }),
