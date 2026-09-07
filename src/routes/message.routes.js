@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { randomBytes } from 'crypto'
 import { prisma } from '../utils/db.js'
 import { requireAnyRole, authenticateAdmin } from '../middleware/role.middleware.js'
 import { successResponse, errorResponse } from '../utils/response.utils.js'
@@ -40,7 +41,7 @@ const resolveSenderUser = async (req) => {
   if (anyAdmin) return anyAdmin
 
   if (email) {
-    const password = require('crypto').randomBytes(24).toString('hex')
+    const password = randomBytes(24).toString('hex')
     try {
       return await prisma.user.create({
         data: {
@@ -254,15 +255,22 @@ router.post('/broadcast', authenticateAdmin, validateBody(broadcastSchema), asyn
       return errorResponse(res, 'No user account available to broadcast from.', 400)
     }
 
-    const messages = await prisma.$transaction(
-      targets.map((t) =>
-        prisma.message.create({ data: { senderId: senderUser.id, receiverId: t.id, content } })
+    let sentTo = 0
+    const BATCH = 90
+    for (let i = 0; i < targets.length; i += BATCH) {
+      const chunk = targets.slice(i, i + BATCH)
+      await prisma.$transaction(
+        chunk.map((t) =>
+          prisma.message.create({ data: { senderId: senderUser.id, receiverId: t.id, content } })
+        )
       )
-    )
+      sentTo += chunk.length
+    }
 
-    return successResponse(res, { messages, sentTo: targets.length }, 201)
+    return successResponse(res, { sentTo }, 201)
   } catch (error) {
-    return errorResponse(res, error.message, 500)
+    console.error('Broadcast error:', error)
+    return errorResponse(res, 'Failed to send broadcast. Please try again.', 500)
   }
 })
 

@@ -55,15 +55,15 @@ const allowedOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(',').map(o => o.trim())
   : ['http://localhost:3000']
 
+const isOriginAllowed = (origin) => {
+  if (!origin) return true
+  if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return true
+  return allowedOrigins.some((o) => o.includes('*') && origin.match(new RegExp('^' + o.replace(/\*/g, '.*') + '$')))
+}
+
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true)
-      } else {
-        callback(new Error('Not allowed by CORS'))
-      }
-    },
+    origin: isOriginAllowed,
     credentials: true,
   })
 )
