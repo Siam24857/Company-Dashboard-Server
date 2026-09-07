@@ -28,6 +28,17 @@ import cloudinaryRoutes from '../src/routes/cloudinary.routes.js'
 import dashboardRoutes from '../src/routes/dashboard.routes.js'
 import walletRoutes from '../src/routes/wallet.routes.js'
 import analyticsRoutes from '../src/routes/analytics.routes.js'
+import documentRoutes from '../src/routes/documents.routes.js'
+import supportRoutes from '../src/routes/support.routes.js'
+import calendarRoutes from '../src/routes/calendar.routes.js'
+import securityRoutes from '../src/routes/security.routes.js'
+import activityRoutes from '../src/routes/activity.routes.js'
+import bulkRoutes from '../src/routes/bulk.routes.js'
+import teamsRoutes from '../src/routes/teams.routes.js'
+import employeesRoutes from '../src/routes/employees.routes.js'
+import projectDetailRoutes from '../src/routes/project-detail.routes.js'
+import enterpriseRoutes from '../src/routes/enterprise.routes.js'
+import commandCenterRoutes from '../src/routes/command-center.routes.js'
 
 dotenv.config()
 
@@ -50,19 +61,9 @@ app.use(
     },
   })
 )
-const allowedOrigins = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(',').map(o => o.trim())
-  : ['*']
-
-const isOriginAllowed = (origin) => {
-  if (!origin) return true
-  if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return true
-  return allowedOrigins.some((o) => o.includes('*') && origin.match(new RegExp('^' + o.replace(/\*/g, '.*') + '$')))
-}
-
 app.use(
   cors({
-    origin: isOriginAllowed,
+    origin: true,
     credentials: true,
   })
 )
@@ -118,6 +119,17 @@ app.use('/api/upload', cloudinaryRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/wallet', walletRoutes)
 app.use('/api/analytics', analyticsRoutes)
+app.use('/api/documents', documentRoutes)
+app.use('/api/support', supportRoutes)
+app.use('/api/calendar', calendarRoutes)
+app.use('/api/security', securityRoutes)
+app.use('/api/activity', activityRoutes)
+app.use('/api/teams', teamsRoutes)
+app.use('/api/employees', employeesRoutes)
+app.use('/api/projects', projectDetailRoutes)
+app.use('/api/enterprise', enterpriseRoutes)
+app.use('/api/admin', commandCenterRoutes)
+app.use('/api/bulk', bulkRoutes)
 
 app.use((err, req, res, next) => {
   console.error('Error:', err.message)

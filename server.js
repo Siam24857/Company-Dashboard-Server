@@ -5,13 +5,6 @@ import rateLimit from 'express-rate-limit'
 import cookieParser from 'cookie-parser'
 import dotenv from 'dotenv'
 
-import { Router } from 'express'
-import cors from 'cors'
-import helmet from 'helmet'
-import rateLimit from 'express-rate-limit'
-import cookieParser from 'cookie-parser'
-import dotenv from 'dotenv'
-
 import { prisma } from './src/utils/db.js'
 
 import authRoutes from './src/routes/auth.routes.js'
@@ -70,19 +63,9 @@ app.use(
     },
   })
 )
-const allowedOrigins = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(',').map(o => o.trim())
-  : ['http://localhost:3000']
-
-const isOriginAllowed = (origin) => {
-  if (!origin) return true
-  if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return true
-  return allowedOrigins.some((o) => o.includes('*') && origin.match(new RegExp('^' + o.replace(/\*/g, '.*') + '$')))
-}
-
 app.use(
   cors({
-    origin: isOriginAllowed,
+    origin: true,
     credentials: true,
   })
 )
