@@ -39,7 +39,7 @@ model User {
   department        Department
   status            UserStatus   @default(PENDING)
   createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  updatedAt         DateTime   @updatedAt
   otp               String?
   otpExpiry         DateTime?
   balance           Float        @default(0)
@@ -56,6 +56,16 @@ model User {
   announcementReads AnnouncementRead[]
   auditLogs         AuditLog[]
   transactions      Transaction[]
+  assignedTasks     Task[]        @relation("TaskAssignee")
+  teamMemberships   TeamMember[]  @relation("UserTeamMemberships")
+  userSkills        UserSkill[]   @relation("UserUserSkills")
+  employeeProfile   EmployeeProfile? @relation("UserEmployeeProfile")
+  userTags          UserTag[]     @relation("UserUserTags")
+  connectionsSent   Connection[]  @relation("ConnectionRequester")
+  connectionsReceived Connection[] @relation("ConnectionTarget")
+
+  @@index([status])
+  @@index([role])
 }
 
 model Transaction {
@@ -103,6 +113,7 @@ enum UserStatus {
   PENDING
   ACTIVE
   SUSPENDED
+  ARCHIVED
 }
 
 model Attendance {
@@ -145,11 +156,20 @@ model Project {
   startDate   DateTime
   dueDate     DateTime?
   completedAt DateTime?
+  budget      Float?
+  expenses    Float         @default(0)
+  health      String        @default("HEALTHY")
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  members     UserProject[]
+   members     UserProject[]
   tasks       Task[]
+  milestones  Milestone[]    @relation("ProjectMilestones")
+  risks       Risk[]         @relation("ProjectRisks")
+  changeRequests ChangeRequest[] @relation("ProjectChangeRequests")
+
+  @@index([status])
+  @@index([health])
 }
 
 enum ProjectStatus {
@@ -179,19 +199,25 @@ model UserProject {
 }
 
 model Task {
-  id          String     @id @default(cuid())
-  projectId   String
-  project     Project    @relation(fields: [projectId], references: [id])
-  title       String
-  description String?
-  assignedTo  String?
-  status      TaskStatus @default(TODO)
-  priority    Priority   @default(MEDIUM)
-  dueDate     DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id              String      @id @default(cuid())
+  projectId       String
+  project         Project     @relation(fields: [projectId], references: [id])
+  title           String
+  description     String?
+  assignedTo      String?
+  status          TaskStatus  @default(TODO)
+  priority        Priority    @default(MEDIUM)
+  dueDate         DateTime?
+  estimatedTime   Int?
+  timeSpent       Int         @default(0)
+  tags            String[]    @default([])
+  isRecurring     Boolean     @default(false)
+  isBlocked       Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
-  submissions TaskSubmission[]
+  submissions     TaskSubmission[]
+  assignee        User?       @relation("TaskAssignee", fields: [assignedTo], references: [id])
 }
 
 enum TaskStatus {
@@ -235,6 +261,7 @@ model Message {
   receiver    User     @relation("MessageReceiver", fields: [receiverId], references: [id])
   content     String
   isRead      Boolean  @default(false)
+  channelId   String?
   createdAt   DateTime @default(now())
 }
 
@@ -246,6 +273,7 @@ model Notification {
   message   String
   isRead    Boolean  @default(false)
   type      String
+  category  String?
   createdAt DateTime @default(now())
 }
 
@@ -278,16 +306,16 @@ enum LeaveStatus {
 }
 
 model Announcement {
-  id          String              @id @default(cuid())
+  id          String                @id @default(cuid())
   title       String
   content     String
-  priority    AnnouncementPriority @default(NORMAL)
+  priority    AnnouncementPriority  @default(NORMAL)
   targetRole  Role?
   publishedAt DateTime?
   expiresAt   DateTime?
   createdBy   String
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
 
   reads       AnnouncementRead[]
 }
@@ -317,6 +345,7 @@ model AuditLog {
   target      String?
   description String?
   ip          String?
+  result      String   @default("SUCCESS")
   createdAt   DateTime @default(now())
 
   user        User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
@@ -420,4 +449,575 @@ model OpsResource {
   renewalDate DateTime?
   assignedTo  String?
   createdAt   DateTime  @default(now())
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  fileName    String
+  fileUrl     String
+  fileSize    Int?
+  mimeType    String?
+  category    String   @default("GENERAL")
+  projectId   String?
+  uploadedBy  String
+  visibility  String   @default("PRIVATE")
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([uploadedBy])
+}
+
+model SupportTicket {
+  id          String       @id @default(cuid())
+  userId      String
+  subject     String
+  description String
+  category    String       @default("GENERAL")
+  priority    Priority     @default(MEDIUM)
+  status      TicketStatus @default(OPEN)
+  assignedTo  String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  messages    TicketMessage[]
+
+  @@index([status])
+  @@index([assignedTo])
+  @@index([userId])
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId    String
+  content   String
+  isStaff   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model CalendarEvent {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  eventType   String    @default("EVENT")
+  startDate   DateTime
+  endDate     DateTime?
+  allDay      Boolean   @default(false)
+  projectId   String?
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([startDate])
+  @@index([eventType])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  target    String?
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  userId      String?
+  eventType   String
+  description String?
+  ipAddress   String?
+  userAgent   String?
+  severity    String   @default("INFO")
+  createdAt   DateTime @default(now())
+
+  @@index([eventType])
+  @@index([severity])
+  @@index([createdAt])
+}
+
+model HelpArticle {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  category    String
+  tags        String[]
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+// ═══════════════════════════════════════════════════════
+// NEW MODELS - all use raw String fields, no @relation
+// ═══════════════════════════════════════════════════════
+
+model TeamMember {
+  id        String     @id @default(cuid())
+  teamId    String
+  team      Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation("UserTeamMemberships", fields: [userId], references: [id])
+  role      String     @default("MEMBER")
+  joinedAt  DateTime   @default(now())
+
+  @@unique([teamId, userId])
+}
+
+model Skill {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  category    String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  userSkills  UserSkill[]
+}
+
+model UserSkill {
+  id          String @id @default(cuid())
+  userId      String
+  user        User   @relation("UserUserSkills", fields: [userId], references: [id])
+  skillId     String
+  skill       Skill  @relation(fields: [skillId], references: [id])
+  level       String @default("beginner")
+  isVerified  Boolean @default(false)
+  assessedAt  DateTime?
+
+  @@unique([userId, skillId])
+}
+
+model EmployeeProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  employeeId       String   @unique
+  user             User     @relation("UserEmployeeProfile", fields: [userId], references: [id])
+  department       String?
+  jobTitle         String?
+  location         String?
+  phone            String?
+  availability     String   @default("AVAILABLE")
+  onboardingStatus String   @default("NOT_STARTED")
+  hiringDate       DateTime?
+  internalNotes    String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Milestone {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation("ProjectMilestones", fields: [projectId], references: [id])
+  title        String
+  description  String?
+  dueDate      DateTime
+  status       String   @default("PLANNING")
+  progress     Float    @default(0)
+  dependencies String[] @default([])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Connection {
+  id          String @id @default(cuid())
+  requesterId String
+  requester   User   @relation("ConnectionRequester", fields: [requesterId], references: [id])
+  targetId    String
+  target      User   @relation("ConnectionTarget", fields: [targetId], references: [id])
+  status      String @default("PENDING")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([requesterId, targetId])
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  name        String
+  category    String   @default("CUSTOM")
+  color       String?
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  userTags    UserTag[]
+}
+
+model UserTag {
+  id        String @id @default(cuid())
+  userId    String
+  user      User   @relation("UserUserTags", fields: [userId], references: [id])
+  tagId     String
+  tag       Tag    @relation(fields: [tagId], references: [id])
+  appliedAt DateTime @default(now())
+
+  @@unique([userId, tagId])
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  icon        String?
+  color       String?
+  department  String
+  leaderId    String?
+  memberCount Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     TeamMember[]
+
+  @@index([slug])
+}
+
+model Webhook {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  secret      String?
+  events      String[] @default([])
+  status      String   @default("ACTIVE")
+  lastUsedAt  DateTime?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WebhookDeliveryLog {
+  id          String @id @default(cuid())
+  webhookId   String
+  eventType   String
+  payload     String
+  statusCode  Int?
+  success     Boolean
+  attempts    Int    @default(0)
+  deliveredAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model FeatureFlag {
+  id               String   @id @default(cuid())
+  name             String   @unique
+  key              String   @unique
+  description      String?
+  enabled          Boolean  @default(false)
+  targetAudience   String   @default("EVERYONE")
+  rolloutPercentage Int     @default(100)
+  allowedRoles     String[] @default([])
+  environment      String   @default("all")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([key])
+}
+
+model CustomKPI {
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  dataSource       String
+  calculation      String
+  target           Float?
+  warningThreshold Float?
+  criticalThreshold Float?
+  displayType      String   @default("NUMBER")
+  timePeriod       String   @default("30d")
+  isActive         Boolean  @default(true)
+  createdById      String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model DashboardLayout {
+  id          String @id @default(cuid())
+  adminId     String
+  name        String @default("Untitled")
+  widgets     String @default("[]")
+  isDefault   Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Approval {
+  id          String @id @default(cuid())
+  type        String
+  title       String
+  description String?
+  requesterId String
+  approverId  String?
+  status      String @default("PENDING")
+  data        String?
+  reason      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([type])
+  @@index([status])
+}
+
+model AutomationRule {
+  id          String @id @default(cuid())
+  name        String
+  description String?
+  trigger     String
+  conditions  String @default("[]")
+  actions     String @default("[]")
+  isActive    Boolean @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AutomationExecutionLog {
+  id          String @id @default(cuid())
+  ruleId      String
+  triggerData String
+  actionTaken String
+  success     Boolean
+  error       String?
+  executedAt  DateTime @default(now())
+}
+
+model Incident {
+  id           String @id @default(cuid())
+  title        String
+  description  String?
+  severity     String @default("MEDIUM")
+  status       String @default("INVESTIGATING")
+  affectedService String
+  owner        String?
+  startedAt    DateTime @default(now())
+  resolvedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status])
+  @@index([severity])
+}
+
+model IncidentTimeline {
+  id        String @id @default(cuid())
+  incidentId String
+  message   String
+  actor     String
+  timestamp DateTime @default(now())
+}
+
+model BackgroundJob {
+  id          String @id @default(cuid())
+  name        String
+  type        String
+  status      String @default("QUEUED")
+  payload     String?
+  progress    Float  @default(0)
+  retryCount  Int    @default(0)
+  maxRetries  Int    @default(3)
+  duration    Int?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+}
+
+model TaskDependency {
+  id              String @id @default(cuid())
+  taskId          String
+  dependsOnTaskId String
+  dependencyType  String @default("FINISH_TO_START")
+  createdAt       DateTime @default(now())
+
+  @@unique([taskId, dependsOnTaskId])
+}
+
+model TaskRecurrenceConfig {
+  id          String @id @default(cuid())
+  taskId      String
+  type        String @default("NONE")
+  interval    Int    @default(1)
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+
+  @@unique([taskId])
+}
+
+model Comment {
+  id         String @id @default(cuid())
+  entityType String
+  entityId   String
+  content    String
+  authorId   String
+  projectId  String?
+  taskId     String?
+  parentId   String?
+  isEdited   Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([entityType, entityId])
+}
+
+model NotificationPreference {
+  id        String @id @default(cuid())
+  userId    String
+  category  String
+  frequency String @default("INSTANT")
+  isEnabled Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, category])
+}
+
+model AnnouncementCategory {
+  id          String @id @default(cuid())
+  name        String @unique
+  slug        String @unique
+  description String?
+  permissions String[] @default([])
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Channel {
+  id          String @id @default(cuid())
+  name        String
+  slug        String @unique
+  type        String
+  categoryId  String?
+  projectId   String?
+  teamId      String?
+  permissions String[] @default([])
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ReportSchedule {
+  id          String @id @default(cuid())
+  name        String
+  type        String
+  source      String
+  fields      String @default("[]")
+  filters     String @default("{}")
+  dateRange   String @default("30d")
+  format      String @default("PDF")
+  frequency   String @default("WEEKLY")
+  recipients  String[] @default([])
+  isActive    Boolean @default(true)
+  lastRun     DateTime?
+  nextRun     DateTime?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([frequency])
+}
+
+model Risk {
+  id          String @id @default(cuid())
+  projectId   String
+  project     Project @relation("ProjectRisks", fields: [projectId], references: [id])
+  title       String
+  description String?
+  severity    String @default("MEDIUM")
+  probability String @default("MEDIUM")
+  owner       String?
+  deadline    DateTime?
+  status      String @default("OPEN")
+  mitigationPlan String?
+  impact      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model ChangeRequest {
+  id          String @id @default(cuid())
+  projectId   String
+  project     Project @relation("ProjectChangeRequests", fields: [projectId], references: [id])
+  title       String
+  description String?
+  requestedBy String
+  reason      String?
+  impact      String?
+  status      String @default("PENDING")
+  approvedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model Session {
+  id         String @id @default(cuid())
+  userId     String
+  device     String?
+  browser    String?
+  ip         String?
+  userAgent  String?
+  loginTime  DateTime @default(now())
+  lastActive DateTime @default(now())
+  isActive   Boolean @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model DataQualityIssue {
+  id          String @id @default(cuid())
+  type        String
+  severity    String
+  table       String?
+  description String?
+  isResolved  Boolean @default(false)
+  detectedAt  DateTime @default(now())
+  resolvedAt  DateTime?
+}
+
+model ProjectMember {
+  id        String @id @default(cuid())
+  projectId String
+  userId    String
+  role      String @default("MEMBER")
+  joinedAt  DateTime @default(now())
+
+  @@unique([projectId, userId])
+}
+
+model WorkloadEntry {
+  id             String @id @default(cuid())
+  employeeId     String
+  date           DateTime @db.Date
+  hoursLogged    Float
+  tasksCompleted Int     @default(0)
+  tasksPending   Int     @default(0)
+  createdAt      DateTime @default(now())
 }

@@ -27,6 +27,7 @@ import auditRoutes from '../src/routes/audit.routes.js'
 import cloudinaryRoutes from '../src/routes/cloudinary.routes.js'
 import dashboardRoutes from '../src/routes/dashboard.routes.js'
 import walletRoutes from '../src/routes/wallet.routes.js'
+import analyticsRoutes from '../src/routes/analytics.routes.js'
 
 dotenv.config()
 
@@ -116,6 +117,7 @@ app.use('/api/admin/audit-logs', auditRoutes)
 app.use('/api/upload', cloudinaryRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/wallet', walletRoutes)
+app.use('/api/analytics', analyticsRoutes)
 
 app.use((err, req, res, next) => {
   console.error('Error:', err.message)

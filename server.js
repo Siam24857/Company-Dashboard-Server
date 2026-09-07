@@ -5,6 +5,13 @@ import rateLimit from 'express-rate-limit'
 import cookieParser from 'cookie-parser'
 import dotenv from 'dotenv'
 
+import { Router } from 'express'
+import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
+import cookieParser from 'cookie-parser'
+import dotenv from 'dotenv'
+
 import { prisma } from './src/utils/db.js'
 
 import authRoutes from './src/routes/auth.routes.js'
@@ -13,6 +20,8 @@ import userRoutes from './src/routes/user.routes.js'
 import profileRoutes from './src/routes/profile.routes.js'
 import attendanceRoutes from './src/routes/attendance.routes.js'
 import projectRoutes from './src/routes/project.routes.js'
+import taskRoutes from './src/routes/task.routes.js'
+import taskSubmissionRoutes from './src/routes/task-submission.routes.js'
 import messageRoutes from './src/routes/message.routes.js'
 import notificationRoutes from './src/routes/notification.routes.js'
 import emailRoutes from './src/routes/email.routes.js'
@@ -21,12 +30,22 @@ import bdRoutes from './src/routes/bd.routes.js'
 import salesRoutes from './src/routes/sales.routes.js'
 import opsRoutes from './src/routes/ops.routes.js'
 import announcementRoutes from './src/routes/announcement.routes.js'
-import taskRoutes from './src/routes/task.routes.js'
-import taskSubmissionRoutes from './src/routes/task-submission.routes.js'
 import auditRoutes from './src/routes/audit.routes.js'
 import cloudinaryRoutes from './src/routes/cloudinary.routes.js'
 import dashboardRoutes from './src/routes/dashboard.routes.js'
 import walletRoutes from './src/routes/wallet.routes.js'
+import analyticsRoutes from './src/routes/analytics.routes.js'
+import documentRoutes from './src/routes/documents.routes.js'
+import supportRoutes from './src/routes/support.routes.js'
+import calendarRoutes from './src/routes/calendar.routes.js'
+import securityRoutes from './src/routes/security.routes.js'
+import activityRoutes from './src/routes/activity.routes.js'
+import bulkRoutes from './src/routes/bulk.routes.js'
+import teamsRoutes from './src/routes/teams.routes.js'
+import employeesRoutes from './src/routes/employees.routes.js'
+import projectDetailRoutes from './src/routes/project-detail.routes.js'
+import enterpriseRoutes from './src/routes/enterprise.routes.js'
+import commandCenterRoutes from './src/routes/command-center.routes.js'
 import { startCronJobs } from './src/services/attendance.cron.js'
 
 dotenv.config()
@@ -113,6 +132,18 @@ app.use('/api/admin/audit-logs', auditRoutes)
 app.use('/api/upload', cloudinaryRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/wallet', walletRoutes)
+app.use('/api/analytics', analyticsRoutes)
+app.use('/api/documents', documentRoutes)
+app.use('/api/support', supportRoutes)
+app.use('/api/calendar', calendarRoutes)
+app.use('/api/security', securityRoutes)
+app.use('/api/activity', activityRoutes)
+app.use('/api/teams', teamsRoutes)
+app.use('/api/employees', employeesRoutes)
+app.use('/api/projects', projectDetailRoutes)
+app.use('/api/enterprise', enterpriseRoutes)
+app.use('/api/admin', commandCenterRoutes)
+app.use('/api/bulk', bulkRoutes)
 
 app.use((err, req, res, next) => {
   console.error(err.stack)
