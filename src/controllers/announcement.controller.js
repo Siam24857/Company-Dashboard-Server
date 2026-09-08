@@ -6,10 +6,10 @@ import { createBroadcast } from '../services/notification.service.js'
 const createAnnouncementSchema = z.object({
   title: z.string().min(3),
   content: z.string().min(1),
-  priority: z.enum(['NORMAL', 'IMPORTANT', 'URGENT']).optional(),
-  targetRole: z.enum(['ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMENT', 'OPERATIONS_DEVELOPER']).optional(),
-  publishedAt: z.string().optional(),
-  expiresAt: z.string().optional(),
+  priority: z.enum(['NORMAL', 'IMPORTANT', 'URGENT']).nullable().optional(),
+  targetRole: z.enum(['ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMENT', 'OPERATIONS_DEVELOPER']).nullable().optional(),
+  publishedAt: z.string().nullable().optional(),
+  expiresAt: z.string().nullable().optional(),
 })
 
 const updateAnnouncementSchema = createAnnouncementSchema.partial()
