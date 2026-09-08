@@ -56,6 +56,30 @@ router.get('/', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMENT
   }
 })
 
+router.get('/milestones', authenticateAdmin, async (req, res) => {
+  try {
+    const milestones = await prisma.milestone.findMany({
+      include: { project: { select: { id: true, title: true } } },
+      orderBy: { dueDate: 'asc' },
+    })
+    return successResponse(res, { milestones })
+  } catch (error) {
+    return errorResponse(res, error.message, 500)
+  }
+})
+
+router.get('/risks', authenticateAdmin, async (req, res) => {
+  try {
+    const risks = await prisma.risk.findMany({
+      include: { project: { select: { id: true, title: true } } },
+      orderBy: { severity: 'desc' },
+    })
+    return successResponse(res, { risks })
+  } catch (error) {
+    return errorResponse(res, error.message, 500)
+  }
+})
+
 router.get('/:id', requireAnyRole('ADMIN', 'BUSINESS_MANAGEMENT', 'SALES_MANAGEMENT', 'OPERATIONS_DEVELOPER'), async (req, res) => {
   try {
     const project = await prisma.project.findUnique({
