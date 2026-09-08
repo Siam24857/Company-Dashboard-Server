@@ -481,10 +481,10 @@ router.get('/insights', authenticateAdmin, async (req, res) => {
       by: ['assignedTo'],
       _count: { _all: true },
       where: { assignedTo: { not: null }, status: { in: ['TODO', 'IN_PROGRESS'] } },
-      having: { _count: { _all: { gte: 5 } } },
     })
-    if (highWorkloadUsers.length > 0) {
-      insights.push({ type: 'warning', text: `${highWorkloadUsers.length} employee${highWorkloadUsers.length > 1 ? 's' : ''} have 5+ active tasks.` })
+    const highWorkloadCount = highWorkloadUsers.filter(g => g._count._all >= 5).length
+    if (highWorkloadCount > 0) {
+      insights.push({ type: 'warning', text: `${highWorkloadCount} employee${highWorkloadCount > 1 ? 's' : ''} have 5+ active tasks.` })
     }
 
     const totalTasks = await prisma.task.count()

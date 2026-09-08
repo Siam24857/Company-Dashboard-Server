@@ -161,7 +161,11 @@ export const logout = (req, res) => {
 
 export const getMe = async (req, res) => {
   try {
-    const { password: _, ...userWithoutPassword } = req.user
+    const current = req.user || req.admin
+    if (!current) {
+      return errorResponse(res, 'No authenticated user', 401)
+    }
+    const { password: _, ...userWithoutPassword } = current
     return successResponse(res, { user: userWithoutPassword })
   } catch (error) {
     return errorResponse(res, error.message, 500)
